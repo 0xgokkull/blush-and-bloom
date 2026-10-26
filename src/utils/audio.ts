@@ -1,11 +1,16 @@
 class CuteAudioManager {
   private ctx: AudioContext | null = null;
+  private bgAudio: HTMLAudioElement | null = null;
   private isPlayingMusic: boolean = false;
-  private musicInterval: number | null = null;
+  private listeners: Set<(isPlaying: boolean) => void> = new Set();
+  // Slightly reduced volume for gentle, romantic background ambience (~35%)
+  private volume: number = 0.35;
 
   private initContext() {
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioCtx();
     }
     if (this.ctx.state === 'suspended') {
@@ -13,7 +18,7 @@ class CuteAudioManager {
     }
   }
 
-  // Play a soft sweet chime note
+  // Soft sweet chime note for question answers and interactions
   playChime(freq = 659.25, duration = 0.5, type: OscillatorType = 'sine') {
     try {
       this.initContext();
@@ -39,7 +44,7 @@ class CuteAudioManager {
     }
   }
 
-  // Play a cute pop sound (used on button dodge or quick interaction)
+  // Cute pop sound used when the 'No' button dodges playfully
   playCutePop() {
     try {
       this.initContext();
@@ -65,9 +70,9 @@ class CuteAudioManager {
     }
   }
 
-  // Play a sparkling harp flourish (for celebrations & reveals)
+  // Sparkling harp flourish for reveals & celebrations
   playSparkleFlourish() {
-    const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51]; // C5, E5, G5, C6, E6
+    const notes = [523.25, 659.25, 783.99, 1046.5, 1318.51]; // C5, E5, G5, C6, E6
     notes.forEach((freq, idx) => {
       setTimeout(() => {
         this.playChime(freq, 0.7, 'triangle');
@@ -75,85 +80,118 @@ class CuteAudioManager {
     });
   }
 
-  // Romantic music box generator (sweet lullaby chords)
-  startRomanticLofi() {
-    if (this.isPlayingMusic) return;
-    this.initContext();
-    if (!this.ctx) return;
+  // Initialize or retrieve background audio element with rasagulla_trim.mp3
+  private getBgAudio(): HTMLAudioElement {
+    if (!this.bgAudio) {
+      const src = `${import.meta.env.BASE_URL}rasagulla_trim.mp3`;
+      this.bgAudio = new Audio(src);
+      this.bgAudio.loop = true;
+      this.bgAudio.volume = this.volume;
+      this.bgAudio.preload = 'auto';
 
-    this.isPlayingMusic = true;
+      this.bgAudio.addEventListener('pause', () => {
+        if (this.isPlayingMusic && this.bgAudio?.paused) {
+          this.isPlayingMusic = false;
+          this.notifyListeners();
+        }
+      });
 
-    // Chord progressions: Cmaj7, Am9, Fmaj7, G6
-    const chordSequences = [
-      [261.63, 329.63, 392.00, 493.88], // C E G B (Cmaj7)
-      [220.00, 261.63, 329.63, 392.00, 493.88], // A C E G B (Am9)
-      [174.61, 220.00, 261.63, 329.63], // F A C E (Fmaj7)
-      [196.00, 246.94, 293.66, 392.00, 440.00], // G B D G A (G6)
-    ];
-
-    let chordIdx = 0;
-    let step = 0;
-
-    const playStep = () => {
-      if (!this.isPlayingMusic || !this.ctx) return;
-
-      const currentChord = chordSequences[chordIdx];
-      // Play arpeggiated note
-      const noteFreq = currentChord[step % currentChord.length] * (step % 2 === 0 ? 1 : 1.5);
-      
-      const osc = this.ctx.createOscillator();
-      const filter = this.ctx.createBiquadFilter();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(noteFreq, this.ctx.currentTime);
-
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(1200, this.ctx.currentTime);
-
-      gain.gain.setValueAtTime(0.001, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.06, this.ctx.currentTime + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 1.2);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start();
-      osc.stop(this.ctx.currentTime + 1.3);
-
-      step++;
-      if (step >= 8) {
-        step = 0;
-        chordIdx = (chordIdx + 1) % chordSequences.length;
-      }
-    };
-
-    // Play every 400ms for dreamy music box feel
-    playStep();
-    this.musicInterval = window.setInterval(playStep, 420);
+      this.bgAudio.addEventListener('play', () => {
+        if (!this.isPlayingMusic) {
+          this.isPlayingMusic = true;
+          this.notifyListeners();
+        }
+      });
+    }
+    return this.bgAudio;
   }
 
-  stopRomanticLofi() {
-    this.isPlayingMusic = false;
-    if (this.musicInterval !== null) {
-      clearInterval(this.musicInterval);
-      this.musicInterval = null;
+  // Start background romantic music track
+  startMusic() {
+    try {
+      const audio = this.getBgAudio();
+      audio.volume = this.volume;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            this.isPlayingMusic = true;
+            this.notifyListeners();
+          })
+          .catch(() => {
+            // Browser autoplay restrictions until user interacts
+            this.isPlayingMusic = false;
+            this.notifyListeners();
+          });
+      }
+    } catch {
+      // Ignored
     }
   }
 
+  // Stop background music track
+  stopMusic() {
+    try {
+      if (this.bgAudio) {
+        this.bgAudio.pause();
+      }
+      this.isPlayingMusic = false;
+      this.notifyListeners();
+    } catch {
+      // Ignored
+    }
+  }
+
+  // Alias for backward compatibility
+  startRomanticLofi() {
+    this.startMusic();
+  }
+
+  // Alias for backward compatibility
+  stopRomanticLofi() {
+    this.stopMusic();
+  }
+
+  // Toggle play/pause
   toggleMusic(): boolean {
     if (this.isPlayingMusic) {
-      this.stopRomanticLofi();
+      this.stopMusic();
       return false;
     } else {
-      this.startRomanticLofi();
+      this.startMusic();
       return true;
     }
   }
 
   getMusicStatus(): boolean {
     return this.isPlayingMusic;
+  }
+
+  // Allow dynamically adjusting volume (0.0 to 1.0)
+  setVolume(vol: number) {
+    this.volume = Math.max(0, Math.min(1, vol));
+    if (this.bgAudio) {
+      this.bgAudio.volume = this.volume;
+    }
+  }
+
+  // Subscribe to playback state changes
+  subscribe(listener: (isPlaying: boolean) => void): () => void {
+    this.listeners.add(listener);
+    listener(this.isPlayingMusic);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notifyListeners() {
+    this.listeners.forEach((listener) => {
+      try {
+        listener(this.isPlayingMusic);
+      } catch {
+        // Ignored
+      }
+    });
   }
 }
 
