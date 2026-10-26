@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { ScreenState } from './types';
 import { questionsData } from './data/questions';
+import { audioManager } from './utils/audio';
 import { FloatingHearts } from './components/FloatingHearts';
 import { MusicPlayer } from './components/MusicPlayer';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -11,6 +12,10 @@ import { BouquetReveal } from './components/BouquetReveal';
 export const App: React.FC = () => {
   const [screen, setScreen] = useState<ScreenState>('welcome');
   const [questionIndex, setQuestionIndex] = useState<number>(0);
+
+  useEffect(() => {
+    audioManager.initAutoplay();
+  }, []);
 
   const handleStartQuestions = () => {
     setQuestionIndex(0);
