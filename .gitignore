@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# User-placed source audio file in root
+/rasagulla_trim.mp3
