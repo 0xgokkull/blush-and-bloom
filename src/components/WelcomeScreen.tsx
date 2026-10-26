@@ -15,6 +15,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
     if (isOpening) return;
     setIsOpening(true);
     audioManager.playSparkleFlourish();
+    if (!audioManager.getMusicStatus()) {
+      audioManager.startMusic();
+    }
     triggerHeartConfetti();
 
     // Smooth delay while envelope opens before transition
