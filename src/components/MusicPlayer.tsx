@@ -1,15 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Volume2, VolumeX, Music } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { audioManager } from '../utils/audio';
 
 export const MusicPlayer: React.FC = () => {
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isPlaying, setIsPlaying] = useState<boolean>(audioManager.getMusicStatus());
   const [showTooltip, setShowTooltip] = useState<boolean>(true);
 
+  useEffect(() => {
+    const unsubscribe = audioManager.subscribe((playing) => {
+      setIsPlaying(playing);
+      if (playing) {
+        setShowTooltip(false);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   const handleToggle = () => {
-    const newState = audioManager.toggleMusic();
-    setIsPlaying(newState);
+    audioManager.toggleMusic();
     setShowTooltip(false);
   };
 
