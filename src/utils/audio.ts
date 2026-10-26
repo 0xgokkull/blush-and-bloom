@@ -2,6 +2,8 @@ class CuteAudioManager {
   private ctx: AudioContext | null = null;
   private bgAudio: HTMLAudioElement | null = null;
   private isPlayingMusic: boolean = false;
+  private userManuallyMuted: boolean = false;
+  private autoPlayInitialized: boolean = false;
   private listeners: Set<(isPlaying: boolean) => void> = new Set();
   // Slightly reduced volume for gentle, romantic background ambience (~35%)
   private volume: number = 0.35;
@@ -108,6 +110,8 @@ class CuteAudioManager {
 
   // Start background romantic music track
   startMusic() {
+    if (this.userManuallyMuted) return;
+
     try {
       const audio = this.getBgAudio();
       audio.volume = this.volume;
@@ -119,7 +123,7 @@ class CuteAudioManager {
             this.notifyListeners();
           })
           .catch(() => {
-            // Browser autoplay restrictions until user interacts
+            // Autoplay policy waiting for user interaction
             this.isPlayingMusic = false;
             this.notifyListeners();
           });
@@ -142,6 +146,30 @@ class CuteAudioManager {
     }
   }
 
+  // Automatically start music on page load, falling back to first interaction if browser blocks autoplay
+  initAutoplay() {
+    if (this.autoPlayInitialized || this.userManuallyMuted) return;
+    this.autoPlayInitialized = true;
+
+    // 1. Attempt immediately upon opening
+    this.startMusic();
+
+    // 2. Fallback: If browser enforces user interaction policy, play on the first touch/click
+    const interactionEvents = ['click', 'touchstart', 'pointerdown', 'keydown'];
+    const handleFirstInteraction = () => {
+      if (!this.userManuallyMuted && !this.isPlayingMusic) {
+        this.startMusic();
+      }
+      interactionEvents.forEach((evt) => {
+        window.removeEventListener(evt, handleFirstInteraction);
+      });
+    };
+
+    interactionEvents.forEach((evt) => {
+      window.addEventListener(evt, handleFirstInteraction, { passive: true });
+    });
+  }
+
   // Alias for backward compatibility
   startRomanticLofi() {
     this.startMusic();
@@ -155,9 +183,11 @@ class CuteAudioManager {
   // Toggle play/pause
   toggleMusic(): boolean {
     if (this.isPlayingMusic) {
+      this.userManuallyMuted = true;
       this.stopMusic();
       return false;
     } else {
+      this.userManuallyMuted = false;
       this.startMusic();
       return true;
     }
